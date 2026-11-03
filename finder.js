@@ -289,14 +289,15 @@
     }
     let s = groups.map((g) => `${g.label} ${g.h}`).join("; ");
     if (w.first > addDays(TODAY, 6)) s = `${T("Starts")} ${monthDay(w.first)}: ${s}`;
-    if (w.last < addDays(w.end, -6)) s += `, ${T("through")} ${monthDay(w.last)}`;
+    // "through" only when the program really ends: a holiday at the end of the window isn't its last day.
+    if (w.last < addDays(w.end, -6) && !evs.some((o) => !o.allDay && o.date > w.end && pick(o))) s += `, ${T("through")} ${monthDay(w.last)}`;
     return s;
   }
   const dateRange = (a, b) => new Intl.DateTimeFormat(LOCALE, { month: "short", day: "numeric", timeZone: "UTC" })
     .formatRange(new Date(a + "T12:00:00Z"), new Date(b + "T12:00:00Z")).replace(/\s*–\s*/, "–");
-  function closureList(evs) {
+  function closureList(evs, ahead = 90) {
     const seen = new Set();
-    return evs.filter((o) => isClosure(o) && (o.endDate || o.date) >= TODAY && o.date <= addDays(TODAY, 90))
+    return evs.filter((o) => isClosure(o) && (o.endDate || o.date) >= TODAY && o.date <= addDays(TODAY, ahead))
       .filter((o) => { const k = `${o.orig || o.title}|${o.date}`; if (seen.has(k)) return false; seen.add(k); return true; })
       .map((o) => {
         const last = o.endDate || o.date;
@@ -392,7 +393,8 @@
         const open = evs.filter((o) => !o.allDay && o.date >= TODAY && inProgram(o));
         el.textContent = open.length ? `${weekday(open[open.length - 1].date)}, ${monthDay(open[open.length - 1].date)}` : "—";
       } else if (mode === "closures") {
-        const list = closureList(evs);
+        // data-ahead: how many days ahead to list closures (default 90), for a long maintenance closure announced early.
+        const list = closureList(evs, +(el.dataset.ahead || 90));
         el.hidden = !list.length;
         // A list that already starts with the label's word ("Closed for the season…") needs no label.
         const label = T(el.dataset.label || "Closed");
